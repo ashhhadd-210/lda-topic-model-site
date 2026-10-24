@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Understanding LDA</title>
+<meta name="description" content="An interactive guide to Latent Dirichlet Allocation: intuition, the generative model, inference, and a live topic-model demo running in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f7f5;--surface:#ffffff;--surface-2:#f0efeb;--border:#e3e1da;
+  --text:#1c1b18;--muted:#5f5d56;--faint:#8a877e;
+  --accent:#6b4fbb;--accent-soft:#ece7fb;--accent-text:#4d3593;
+  --t1:#6b4fbb;--t2:#d9772b;--t3:#1f8a70;--t4:#c2417a;--t5:#2f6fd0;--t6:#a89a1c;
+  --code-bg:#f0efeb;--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px -12px rgba(0,0,0,.12);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121215;--surface:#1a1a1f;--surface-2:#222228;--border:#2d2d35;
+    --text:#ececea;--muted:#a6a6a0;--faint:#75756f;
+    --accent:#a48cf0;--accent-soft:#2a2340;--accent-text:#c5b6ff;
+    --t1:#a48cf0;--t2:#f0a05a;--t3:#4fc3a1;--t4:#ee7fb0;--t5:#6fa2f5;--t6:#d4c94a;
+    --code-bg:#222228;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121215;--surface:#1a1a1f;--surface-2:#222228;--border:#2d2d35;
+  --text:#ececea;--muted:#a6a6a0;--faint:#75756f;
+  --accent:#a48cf0;--accent-soft:#2a2340;--accent-text:#c5b6ff;
+  --t1:#a48cf0;--t2:#f0a05a;--t3:#4fc3a1;--t4:#ee7fb0;--t5:#6fa2f5;--t6:#d4c94a;
+  --code-bg:#222228;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-text)}
+code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;color:var(--text)}
+.brand .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--t1),var(--t4));display:grid;place-items:center;color:#fff;font-size:12px;font-weight:800}
+.links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.links::-webkit-scrollbar{display:none}
+.links a{color:var(--muted);text-decoration:none;font-size:14px;padding:6px 10px;border-radius:8px;white-space:nowrap}
+.links a:hover{background:var(--surface-2);color:var(--text)}
+.theme{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px}
+/* hero */
+.hero{padding:72px 0 48px}
+.eyebrow{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);background:var(--accent-soft);padding:4px 10px;border-radius:999px;margin-bottom:18px}
+h1{font-size:clamp(34px,6vw,60px);line-height:1.05;letter-spacing:-.02em;margin:0 0 18px;font-weight:800}
+h1 span{background:linear-gradient(90deg,var(--t1),var(--t4),var(--t2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:680px;margin:0 0 28px}
+.cta{display:inline-flex;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;border:1px solid transparent;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{background:var(--surface);border-color:var(--border);color:var(--text)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:44px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat b{display:block;font-size:22px;letter-spacing:-.01em}
+.stat span{font-size:13px;color:var(--muted)}
+/* sections */
+section{padding:56px 0;border-top:1px solid var(--border)}
+h2{font-size:clamp(26px,3.5vw,36px);letter-spacing:-.02em;margin:0 0 8px;line-height:1.15}
+.sub{color:var(--muted);font-size:17px;max-width:720px;margin:0 0 32px}
+h3{font-size:19px;margin:0 0 8px;letter-spacing:-.01em}
+p{margin:0 0 14px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.card p:last-child{margin-bottom:0}
+.num{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--accent-soft);color:var(--accent-text);font-weight:700;font-size:14px;margin-bottom:12px}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted);margin-right:6px}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:0}
+.math{font-family:"JetBrains Mono",monospace;background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:14px;overflow-x:auto;margin:10px 0 16px}
+.math .lbl{color:var(--faint);font-size:12px;display:block;margin-bottom:4px;font-family:Inter,sans-serif}
+.t1{color:var(--t1)}.t2{color:var(--t2)}.t3{color:var(--t3)}.t4{color:var(--t4)}.t5{color:var(--t5)}.t6{color:var(--t6)}
+/* plate diagram */
+.plate-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;overflow-x:auto}
+.plate-wrap svg{width:100%;max-width:760px;height:auto;display:block;margin:0 auto}
+.plate-wrap .node{fill:var(--surface);stroke:var(--text);stroke-width:1.6}
+.plate-wrap .obs{fill:var(--surface-2)}
+.plate-wrap .plate{fill:none;stroke:var(--faint);stroke-width:1.2;stroke-dasharray:0}
+.plate-wrap text{fill:var(--text);font-family:"JetBrains Mono",monospace;font-size:15px}
+.plate-wrap .cap{fill:var(--muted);font-family:Inter,sans-serif;font-size:12px}
+.plate-wrap .arr{stroke:var(--text);stroke-width:1.6;fill:none;marker-end:url(#ah)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px;font-size:14px;color:var(--muted)}
+/* dirichlet viz */
+.dir{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.dir .card{padding:16px}
+.dir canvas{width:100%;height:auto;border-radius:8px;background:var(--surface-2)}
+.dir b{font-size:14px}
+.dir small{color:var(--muted);display:block;margin-top:6px;font-size:13px}
+/* demo */
+.demo{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.demo-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.ctrl{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ctrl input[type=range]{accent-color:var(--accent);width:110px}
+.ctrl output{font-family:"JetBrains Mono",monospace;color:var(--text);min-width:32px;text-align:right}
+.demo-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media (max-width:860px){.demo-body{grid-template-columns:1fr}}
+.pane{padding:20px 22px}
+.pane+.pane{border-left:1px solid var(--border)}
+@media (max-width:860px){.pane+.pane{border-left:0;border-top:1px solid var(--border)}}
+textarea{width:100%;min-height:260px;resize:vertical;border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:10px;padding:12px;font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1.5}
+.pane h4{margin:0 0 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.topics{display:grid;gap:10px}
+.topic{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.topic .th{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px;font-weight:600}
+.topic .th .sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:8px}
+.words{display:flex;flex-wrap:wrap;gap:6px}
+.w{font-family:"JetBrains Mono",monospace;font-size:12.5px;padding:2px 7px;border-radius:6px;background:var(--surface);border:1px solid var(--border)}
+.docs{display:grid;gap:8px}
+.doc{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.doc .txt{font-size:13px;line-height:1.7}
+.doc .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:8px;background:var(--surface)}
+.doc .bar i{display:block;height:100%}
+.tok{padding:1px 3px;border-radius:4px;border-bottom:2px solid transparent}
+.status{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);padding:12px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:13px}
+tr:last-child td{border-bottom:0}
+.tbl{overflow-x:auto;border-radius:var(--radius)}
+/* steps */
+.steps{counter-reset:s;display:grid;gap:12px}
+.step{display:grid;grid-template-columns:36px 1fr;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--accent-soft);color:var(--accent-text);font-weight:700;font-size:14px}
+.step b{display:block;margin-bottom:3px}
+.step p{margin:0;color:var(--muted);font-size:14.5px}
+footer{padding:36px 0;color:var(--faint);font-size:13px;border-top:1px solid var(--border)}
+details{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0 18px;margin-bottom:10px}
+summary{cursor:pointer;padding:14px 0;font-weight:600}
+details p{color:var(--muted);padding-bottom:14px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="dot">θ</span>LDA</a>
+    <div class="links">
+      <a href="#intuition">Intuition</a>
+      <a href="#model">Model</a>
+      <a href="#dirichlet">Dirichlet</a>
+      <a href="#inference">Inference</a>
+      <a href="#demo">Live demo</a>
+      <a href="#practice">In practice</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <button class="theme" id="themeBtn" aria-label="Toggle theme">◐ Theme</button>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="eyebrow">Topic modelling · Bayesian ML</span>
+    <h1>Latent Dirichlet Allocation,<br><span>explained and running live</span></h1>
+    <p class="lede">LDA is a generative probabilistic model that discovers the hidden <em>topics</em> in a collection of documents. Every document is a mixture of topics, and every topic is a distribution over words. This page walks from the intuition to the maths, then trains a real model in your browser.</p>
+    <div class="cta">
+      <a class="btn primary" href="#demo">Try the live demo →</a>
+      <a class="btn ghost" href="#model">Read the model</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>2003</b><span>Blei, Ng &amp; Jordan publish LDA in JMLR</span></div>
+      <div class="stat"><b>K</b><span>Topics you choose up front</span></div>
+      <div class="stat"><b>α, β</b><span>Dirichlet priors that control sparsity</span></div>
+      <div class="stat"><b>Unsupervised</b><span>No labels needed, only raw text</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="intuition">
+  <div class="wrap">
+    <h2>The intuition</h2>
+    <p class="sub">Imagine a writer who, before typing a sentence, first picks a topic from their own personal blend, then picks a word that topic likes. LDA is the mathematical description of that writer, run backwards.</p>
+    <div class="grid g3">
+      <div class="card">
+        <div class="num">1</div>
+        <h3>Documents are mixtures</h3>
+        <p>A news article might be <span class="t1"><b>60% politics</b></span>, <span class="t2"><b>30% economy</b></span>, <span class="t3"><b>10% sport</b></span>. LDA represents each document as a vector of topic proportions <code>θ</code> that sums to one.</p>
+      </div>
+      <div class="card">
+        <div class="num">2</div>
+        <h3>Topics are word distributions</h3>
+        <p>The "economy" topic puts high probability on <code>inflation</code>, <code>rates</code>, <code>bank</code>, and near-zero on <code>goalkeeper</code>. Each topic is a vector <code>φ</code> over the whole vocabulary.</p>
+      </div>
+      <div class="card">
+        <div class="num">3</div>
+        <h3>Words are the evidence</h3>
+        <p>We only ever observe words. LDA infers which topic each word came from, and from those assignments reconstructs both the topics and the document mixtures.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Why "latent", why "Dirichlet", why "allocation"?</h3>
+      <p><b>Latent</b> because topics are hidden variables that are never observed directly. <b>Dirichlet</b> because the model places Dirichlet priors on both the per-document topic mixture and the per-topic word distribution. <b>Allocation</b> because each word token in the corpus is allocated to exactly one topic.</p>
+    </div>
+  </div>
+</section>
+
+<section id="model">
+  <div class="wrap">
+    <h2>The generative model</h2>
+    <p class="sub">LDA tells a story about how a corpus of <code>D</code> documents could have been written using <code>K</code> topics over a vocabulary of <code>V</code> words.</p>
+
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <div class="steps">
+          <div class="step"><div><b>For each topic k = 1…K</b><p>Draw a word distribution <code>φ<sub>k</sub> ~ Dirichlet(β)</code>.</p></div></div>
+          <div class="step"><div><b>For each document d</b><p>Draw a topic mixture <code>θ<sub>d</sub> ~ Dirichlet(α)</code>.</p></div></div>
+          <div class="step"><div><b>For each word position n in document d</b><p>Draw a topic <code>z<sub>d,n</sub> ~ Categorical(θ<sub>d</sub>)</code>, then draw the word <code>w<sub>d,n</sub> ~ Categorical(φ<sub>z<sub>d,n</sub></sub>)</code>.</p></div></div>
+        </div>
+        <div class="math" style="margin-top:16px">
+          <span class="lbl">Joint probability of everything</span>
+          p(φ, θ, z, w | α, β) = ∏<sub>k</sub> p(φ<sub>k</sub>|β) · ∏<sub>d</sub> p(θ<sub>d</sub>|α) ∏<sub>n</sub> p(z<sub>d,n</sub>|θ<sub>d</sub>) p(w<sub>d,n</sub>|φ<sub>z<sub>d,n</sub></sub>)
+        </div>
+      </div>
+
+      <div class="plate-wrap">
+        <svg viewBox="0 0 760 300" role="img" aria-label="LDA plate notation">
+          <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="fill:var(--text)"/></marker></defs>
+          <!-- plates -->
+          <rect class="plate" x="150" y="40" width="440" height="220" rx="10"/>
+          <text class="cap" x="565" y="250" text-anchor="end">D documents</text>
+          <rect class="plate" x="320" y="80" width="250" height="150" rx="10"/>
+          <text class="cap" x="550" y="220" text-anchor="end">N words</text>
+          <rect class="plate" x="620" y="60" width="120" height="120" rx="10"/>
+          <text class="cap" x="728" y="170" text-anchor="end">K topics</text>
+          <!-- arrows -->
+          <line class="arr" x1="86" y1="150" x2="196" y2="150"/>
+          <line class="arr" x1="256" y1="150" x2="366" y2="150"/>
+          <line class="arr" x1="426" y1="150" x2="476" y2="150"/>
+          <line class="arr" x1="650" y1="120" x2="538" y2="144"/>
+          <line class="arr" x1="680" y1="224" x2="680" y2="152"/>
+          <!-- nodes -->
+          <circle class="node" cx="58" cy="150" r="28"/><text x="58" y="156" text-anchor="middle">α</text>
+          <circle class="node" cx="226" cy="150" r="30"/><text x="226" y="156" text-anchor="middle">θ</text>
+          <circle class="node" cx="396" cy="150" r="30"/><text x="396" y="156" text-anchor="middle">z</text>
+          <circle class="node obs" cx="506" cy="150" r="30"/><text x="506" y="156" text-anchor="middle">w</text>
+          <circle class="node" cx="680" cy="120" r="30"/><text x="680" y="126" text-anchor="middle">φ</text>
+          <circle class="node" cx="680" cy="250" r="26"/><text x="680" y="256" text-anchor="middle">β</text>
+        </svg>
+        <div class="legend">
+          <span><b>α</b> topic-mixture prior</span>
+          <span><b>θ</b> per-document topic mixture</span>
+          <span><b>z</b> topic of each word</span>
+          <span><b>w</b> observed word (shaded)</span>
+          <span><b>φ</b> per-topic word distribution</span>
+          <span><b>β</b> word-distribution prior</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="dirichlet">
+  <div class="wrap">
+    <h2>Why the Dirichlet?</h2>
+    <p class="sub">A Dirichlet is a distribution <em>over</em> probability vectors. Its concentration parameter decides whether those vectors are spiky (few topics per document) or flat (many). Each dot below is one document's topic mixture over three topics, sampled live.</p>
+    <div class="dir" id="dirichletViz"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <h3>Small α → sparse documents</h3>
+        <p>With <code>α &lt; 1</code>, samples pile up in the corners of the simplex. Each document is dominated by one or two topics. This is what real text usually looks like, so <code>α ≈ 50/K</code> or smaller is a common default.</p>
+      </div>
+      <div class="card">
+        <h3>Small β → sharp topics</h3>
+        <p>The same logic applies to topics over words. A small <code>β</code> (often <code>0.01</code>) forces each topic to concentrate on a small set of words, which makes topics interpretable. Large <code>β</code> smears topics across the vocabulary.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Conjugacy is what makes inference tractable</h3>
+      <p>The Dirichlet is the conjugate prior of the categorical distribution. That means after observing counts <code>n<sub>k</sub></code> of each topic in a document, the posterior over <code>θ</code> is again a Dirichlet with parameters <code>α + n<sub>k</sub></code>. This lets us integrate <code>θ</code> and <code>φ</code> out analytically, which is the trick behind collapsed Gibbs sampling below.</p>
+    </div>
+  </div>
+</section>
+
+<section id="inference">
+  <div class="wrap">
+    <h2>Inference: running the story backwards</h2>
+    <p class="sub">The exact posterior <code>p(θ, φ, z | w)</code> is intractable. Two families of approximations dominate in practice.</p>
+
+    <div class="grid g2" style="align-items:start">
+      <div class="card">
+        <span class="tag">MCMC</span><span class="tag">Used in the demo</span>
+        <h3>Collapsed Gibbs sampling</h3>
+        <p>Integrate out <code>θ</code> and <code>φ</code>, then repeatedly resample the topic of each word token given every other assignment. The update is beautifully simple:</p>
+        <div class="math">
+          <span class="lbl">Probability that token (d, n) belongs to topic k</span>
+          p(z<sub>d,n</sub>=k | z<sub>−(d,n)</sub>, w) ∝ <span class="t1">(n<sub>d,k</sub> + α)</span> · <span class="t2">(n<sub>k,w</sub> + β) / (n<sub>k</sub> + Vβ)</span>
+        </div>
+        <p><span class="t1"><b>Left factor:</b></span> how much document <code>d</code> already likes topic <code>k</code>. <span class="t2"><b>Right factor:</b></span> how much topic <code>k</code> already likes word <code>w</code>. Words drift towards topics that are popular in their document <em>and</em> that already own similar words. Run for a few hundred sweeps and the assignments settle.</p>
+        <pre><code>for sweep in range(iters):
+  for d, n in tokens:
+    k = z[d][n]
+    n_dk[d][k] -= 1; n_kw[k][w] -= 1; n_k[k] -= 1
+    p = (n_dk[d] + a) * (n_kw[:, w] + b) / (n_k + V*b)
+    k = sample(p / p.sum())
+    z[d][n] = k
+    n_dk[d][k] += 1; n_kw[k][w] += 1; n_k[k] += 1</code></pre>
+      </div>
+      <div class="card">
+        <span class="tag">Optimisation</span><span class="tag">scikit-learn, gensim</span>
+        <h3>Variational Bayes</h3>
+        <p>Instead of sampling, choose a simpler factorised distribution <code>q(θ, φ, z)</code> and tune its parameters to minimise the KL divergence to the true posterior. Equivalently, maximise the evidence lower bound:</p>
+        <div class="math">
+          <span class="lbl">ELBO</span>
+          log p(w) ≥ E<sub>q</sub>[log p(w, z, θ, φ)] − E<sub>q</sub>[log q(z, θ, φ)]
+        </div>
+        <p>The 2010 <b>online variational Bayes</b> algorithm of Hoffman, Blei and Bach processes documents in mini-batches, which is why LDA scales to millions of documents and is the default in most libraries.</p>
+        <div class="tbl" style="margin-top:12px">
+          <table>
+            <tr><th></th><th>Gibbs</th><th>Variational</th></tr>
+            <tr><td>Accuracy</td><td>Asymptotically exact</td><td>Biased but good</td></tr>
+            <tr><td>Speed</td><td>Slow per sweep</td><td>Fast, streamable</td></tr>
+            <tr><td>Code size</td><td>~15 lines</td><td>Substantial</td></tr>
+            <tr><td>Deterministic</td><td>No</td><td>Given a seed, yes</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="wrap">
+    <h2>Live demo</h2>
+    <p class="sub">A collapsed Gibbs sampler written in plain JavaScript. Edit the corpus (one document per line), pick the number of topics, and press <b>Train</b>. Words are coloured by their final topic assignment.</p>
+
+    <div class="demo">
+      <div class="demo-head">
+        <div class="controls">
+          <label class="ctrl">Topics K <input type="range" id="kRange" min="2" max="6" value="3"><output id="kOut">3</output></label>
+          <label class="ctrl">α <input type="range" id="aRange" min="1" max="200" value="10"><output id="aOut">0.10</output></label>
+          <label class="ctrl">β <input type="range" id="bRange" min="1" max="100" value="1"><output id="bOut">0.01</output></label>
+          <label class="ctrl">Sweeps <input type="range" id="iRange" min="50" max="1000" step="50" value="400"><output id="iOut">400</output></label>
+        </div>
+        <div class="controls">
+          <button class="btn ghost" id="resetBtn">Reset corpus</button>
+          <button class="btn primary" id="trainBtn">Train ▶</button>
+        </div>
+      </div>
+      <div class="demo-body">
+        <div class="pane">
+          <h4>Corpus · one document per line</h4>
+          <textarea id="corpus" spellcheck="false"></textarea>
+        </div>
+        <div class="pane">
+          <h4>Discovered topics · top words</h4>
+          <div class="topics" id="topicsOut"><div class="topic"><div class="th">Press Train to run the sampler</div></div></div>
+        </div>
+      </div>
+      <div class="pane" style="border-top:1px solid var(--border)">
+        <h4>Documents · coloured by topic assignment, bar = θ<sub>d</sub></h4>
+        <div class="docs" id="docsOut"></div>
+      </div>
+      <div class="status"><span id="statusL">idle</span><span id="statusR">vocabulary: – · tokens: –</span></div>
+    </div>
+
+    <div class="grid g3" style="margin-top:16px">
+      <div class="card"><h3>Try this</h3><p>Set K to 2. Notice how the sampler merges two related themes and where the boundary words end up.</p></div>
+      <div class="card"><h3>Then this</h3><p>Push α up to 2.0. Document bars become more evenly mixed because the prior now favours flat mixtures.</p></div>
+      <div class="card"><h3>And this</h3><p>Paste your own text, one paragraph per line. Stopwords are removed automatically. Aim for at least 8 to 10 lines.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="practice">
+  <div class="wrap">
+    <h2>LDA in practice</h2>
+    <p class="sub">What matters when you move from a toy demo to a real corpus.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Preprocessing decides everything</h3>
+        <p>Lowercase, remove stopwords, drop tokens appearing in fewer than ~5 documents or more than ~50%, and lemmatise. Bigrams such as <code>machine_learning</code> often sharpen topics noticeably. LDA on raw text produces topics made of "the", "and", "of".</p>
+      </div>
+      <div class="card">
+        <h3>Choosing K</h3>
+        <p>There is no single right answer. Sweep K and compare <b>topic coherence</b> (C<sub>v</sub> or UMass), which correlates with human judgement far better than held-out perplexity does. Then read the topics. If two are indistinguishable, K is too high.</p>
+      </div>
+      <div class="card">
+        <h3>Evaluating topics</h3>
+        <p>Use word-intrusion tests, coherence scores, and downstream task performance. Visualise with <code>pyLDAvis</code> to see topic overlap and term relevance. A topic that a domain expert can name in three words is a good topic.</p>
+      </div>
+      <div class="card">
+        <h3>Where it is used</h3>
+        <p>Document clustering and navigation, recommendation (users as documents, items as words), customer-feedback mining, scientific-literature surveys, legal e-discovery, and as features for classifiers. It also underlies population-genetics models such as STRUCTURE.</p>
+      </div>
+    </div>
+
+    <h3 style="margin:36px 0 12px">LDA versus its neighbours</h3>
+    <div class="tbl">
+      <table>
+        <tr><th>Method</th><th>Type</th><th>Output</th><th>Strengths</th><th>Weaknesses</th></tr>
+        <tr><td><b>LDA</b></td><td>Probabilistic, Bayesian</td><td>Topic mixtures + word distributions</td><td>Interpretable, principled priors, extensible (author, time, hierarchy)</td><td>Bag of words, must choose K, slow on huge vocabularies</td></tr>
+        <tr><td>LSA / LSI</td><td>Linear algebra (SVD)</td><td>Dense latent dimensions</td><td>Fast, deterministic</td><td>Negative weights, hard to interpret</td></tr>
+        <tr><td>NMF</td><td>Matrix factorisation</td><td>Non-negative parts</td><td>Fast, often sharper on short texts</td><td>No generative story, no priors</td></tr>
+        <tr><td>BERTopic</td><td>Embeddings + clustering</td><td>Clusters with c-TF-IDF labels</td><td>Captures semantics, handles short texts</td><td>Heavy models, one topic per document by default</td></tr>
+      </table>
+    </div>
+
+    <h3 style="margin:36px 0 12px">Minimal Python</h3>
+    <pre><code>from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+
+vec = CountVectorizer(stop_words="english", min_df=2, max_df=0.5)
+X = vec.fit_transform(docs)                       # docs: list[str]
+
+lda = LatentDirichletAllocation(
+    n_components=8, doc_topic_prior=0.1, topic_word_prior=0.01,
+    learning_method="online", random_state=0)
+theta = lda.fit_transform(X)                      # D × K document mixtures
+phi = lda.components_ / lda.components_.sum(1, keepdims=True)  # K × V topics
+
+terms = vec.get_feature_names_out()
+for k, row in enumerate(phi):
+    print(k, [terms[i] for i in row.argsort()[-10:][::-1]])</code></pre>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Common questions</h2>
+    <p class="sub">Short answers to the things people ask after their first model.</p>
+    <details><summary>Is LDA the same as Linear Discriminant Analysis?</summary><p>No. They share an acronym and nothing else. Linear Discriminant Analysis is a supervised classification and dimensionality-reduction technique from classical statistics. Latent Dirichlet Allocation is an unsupervised generative model of text.</p></details>
+    <details><summary>Why do I get different topics each run?</summary><p>Both Gibbs sampling and variational inference start from random initialisations and converge to local optima. Fix a random seed for reproducibility, and run several seeds to check topic stability.</p></details>
+    <details><summary>Does word order matter?</summary><p>No. LDA is a bag-of-words model; it only sees counts. That is a limitation, but it is also why it is fast and why it works on any language once tokenised.</p></details>
+    <details><summary>How much text do I need?</summary><p>Thousands of documents of at least a paragraph each give reliable topics. Tweets and other very short texts are hard; consider pooling them by author or hashtag, or use a short-text variant such as Biterm Topic Model or BERTopic.</p></details>
+    <details><summary>What are the classic extensions?</summary><p>Correlated Topic Models (topics co-occur), Dynamic Topic Models (topics drift over time), Hierarchical Dirichlet Processes (K learned from data), Author-Topic and Supervised LDA (labels or metadata attached), and Labeled LDA (multi-label documents).</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Built as a local educational site. Foundational paper: Blei, Ng &amp; Jordan, "Latent Dirichlet Allocation", JMLR 3 (2003). Sampler and Dirichlet visualiser run entirely in your browser.</div>
+</footer>
+
+<script>
+/* ---------- theme ---------- */
+(function(){
+  const root=document.documentElement, btn=document.getElementById('themeBtn');
+  try{ const s=localStorage.getItem('lda-theme'); if(s) root.dataset.theme=s; }catch(e){}
+  btn.addEventListener('click',()=>{
+    const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+    const cur=root.dataset.theme||(dark?'dark':'light');
+    const next=cur==='dark'?'light':'dark';
+    root.dataset.theme=next; try{localStorage.setItem('lda-theme',next)}catch(e){}
+    drawDirichlet();
+  });
+})();
+
+const TOPIC_COLORS=['--t1','--t2','--t3','--t4','--t5','--t6'];
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ---------- Dirichlet sampler + simplex viz ---------- */
+function gammaSample(a){ // Marsaglia–Tsang
+  if(a<1){ return gammaSample(a+1)*Math.pow(Math.random(),1/a); }
+  const d=a-1/3, c=1/Math.sqrt(9*d);
+  for(;;){
+    let x,v;
+    do{ x=normal(); v=1+c*x; }while(v<=0);
+    v=v*v*v; const u=Math.random();
+    if(u<1-0.0331*x*x*x*x) return d*v;
+    if(Math.log(u)<0.5*x*x+d*(1-v+Math.log(v))) return d*v;
+  }
+}
+function normal(){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function dirichlet(alpha){ const g=alpha.map(gammaSample), s=g.reduce((a,b)=>a+b,0); return g.map(x=>x/s); }
+
+function drawDirichlet(){
+  const host=document.getElementById('dirichletViz'); host.innerHTML='';
+  const configs=[{a:0.1,l:'α = 0.1',d:'Very sparse: nearly every document is one topic.'},{a:0.5,l:'α = 0.5',d:'Sparse: documents lean on one or two topics.'},{a:1,l:'α = 1',d:'Uniform over the simplex: any mixture equally likely.'},{a:5,l:'α = 5',d:'Concentrated at the centre: everything is an even blend.'}];
+  configs.forEach(cfg=>{
+    const card=document.createElement('div'); card.className='card';
+    const cv=document.createElement('canvas'); cv.width=300; cv.height=270;
+    card.appendChild(cv);
+    const b=document.createElement('b'); b.textContent=cfg.l; card.appendChild(b);
+    const s=document.createElement('small'); s.textContent=cfg.d; card.appendChild(s);
+    host.appendChild(card);
+    const ctx=cv.getContext('2d');
+    const A=[150,20],B=[20,250],C=[280,250];
+    ctx.strokeStyle=cssVar('--border'); ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(...A); ctx.lineTo(...B); ctx.lineTo(...C); ctx.closePath(); ctx.stroke();
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle=cssVar('--muted'); ctx.textAlign='center';
+    ctx.fillText('topic 1',150,14); ctx.textAlign='left'; ctx.fillText('topic 2',6,266); ctx.textAlign='right'; ctx.fillText('topic 3',294,266);
+    const cols=[cssVar('--t1'),cssVar('--t2'),cssVar('--t3')];
+    for(let i=0;i<400;i++){
+      const p=dirichlet([cfg.a,cfg.a,cfg.a]);
+      const x=p[0]*A[0]+p[1]*B[0]+p[2]*C[0], y=p[0]*A[1]+p[1]*B[1]+p[2]*C[1];
+      const k=p.indexOf(Math.max(...p));
+      ctx.fillStyle=cols[k]; ctx.globalAlpha=.75;
+      ctx.beginPath(); ctx.arc(x,y,2.2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  });
+}
+drawDirichlet();
+
+/* ---------- LDA demo ---------- */
+const DEFAULT_CORPUS=`The central bank raised interest rates again as inflation stayed above target and bond yields climbed.
+Investors sold shares after the bank warned that inflation and rates would weigh on corporate earnings this year.
+Markets rallied when the finance minister promised tax cuts and a smaller budget deficit to calm bond investors.
+The striker scored twice in the final minutes as the team won the league title in front of a packed stadium.
+The goalkeeper made three saves in the penalty shootout and the fans celebrated the cup win all night.
+The coach praised the midfield after the team beat their rivals and moved to the top of the league table.
+Researchers trained a neural network on millions of images and the model learned to recognise tumours in scans.
+The new algorithm uses reinforcement learning to teach a robot to grasp objects it has never seen before.
+Scientists published a dataset of protein structures predicted by a deep learning model trained on genome data.
+The bank's chief economist said the labour market remained tight and wage growth kept inflation sticky.
+The team signed a new striker for a record fee and the coach hopes he scores in the derby this weekend.
+Engineers deployed the language model to summarise medical records and flag patients for follow-up.`;
+
+const STOP=new Set('a an the and or but of to in on at for with as by from is are was were be been being this that these those it its his her their they them he she we you i our your has have had do does did not no yes than then so such very can could would should will just also into over after before again all any more most other some only own same too when where which who whom while about above below between under up down out off once here there both each few until during through against about'.split(' '));
+
+const $=id=>document.getElementById(id);
+const corpusEl=$('corpus');
+corpusEl.value=DEFAULT_CORPUS;
+$('resetBtn').onclick=()=>{corpusEl.value=DEFAULT_CORPUS;};
+
+const kR=$('kRange'),aR=$('aRange'),bR=$('bRange'),iR=$('iRange');
+const fmt=()=>{ $('kOut').textContent=kR.value; $('aOut').textContent=(aR.value/100).toFixed(2); $('bOut').textContent=(bR.value/100).toFixed(2); $('iOut').textContent=iR.value; };
+[kR,aR,bR,iR].forEach(r=>r.addEventListener('input',fmt)); fmt();
+
+function tokenize(line){
+  return line.toLowerCase().replace(/[^a-z\s']/g,' ').split(/\s+/).filter(w=>w.length>2&&!STOP.has(w)&&!/^'+$/.test(w)).map(w=>w.replace(/'s$/,''));
+}
+function sampleFrom(p,sum){ let r=Math.random()*sum; for(let k=0;k<p.length;k++){ r-=p[k]; if(r<=0) return k; } return p.length-1; }
+
+function runLDA(){
+  const lines=corpusEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(lines.length<2){ $('statusL').textContent='need at least 2 documents'; return; }
+  const K=+kR.value, alpha=aR.value/100, beta=bR.value/100, iters=+iR.value;
+  const vocab=new Map(), inv=[];
+  const docs=lines.map(l=>tokenize(l).map(w=>{ if(!vocab.has(w)){vocab.set(w,inv.length);inv.push(w);} return vocab.get(w); }));
+  const V=inv.length; const T=docs.reduce((a,d)=>a+d.length,0);
+  if(V===0){ $('statusL').textContent='no usable tokens'; return; }
+
+  const ndk=docs.map(()=>new Float64Array(K)), nkw=Array.from({length:K},()=>new Float64Array(V)), nk=new Float64Array(K);
+  const z=docs.map(d=>d.map(w=>{ const k=Math.floor(Math.random()*K); return k; }));
+  docs.forEach((d,di)=>d.forEach((w,n)=>{ const k=z[di][n]; ndk[di][k]++; nkw[k][w]++; nk[k]++; }));
+
+  const p=new Float64Array(K); const t0=performance.now();
+  for(let it=0;it<iters;it++){
+    for(let di=0;di<docs.length;di++){
+      const d=docs[di], zd=z[di], nd=ndk[di];
+      for(let n=0;n<d.length;n++){
+        const w=d[n]; let k=zd[n];
+        nd[k]--; nkw[k][w]--; nk[k]--;
+        let s=0;
+        for(let j=0;j<K;j++){ p[j]=(nd[j]+alpha)*(nkw[j][w]+beta)/(nk[j]+V*beta); s+=p[j]; }
+        k=sampleFrom(p,s);
+        zd[n]=k; nd[k]++; nkw[k][w]++; nk[k]++;
+      }
+    }
+  }
+  const ms=Math.round(performance.now()-t0);
+
+  // topics
+  const cols=TOPIC_COLORS.map(cssVar);
+  const topicsHost=$('topicsOut'); topicsHost.innerHTML='';
+  for(let k=0;k<K;k++){
+    const idx=Array.from({length:V},(_,i)=>i).sort((a,b)=>nkw[k][b]-nkw[k][a]).slice(0,8).filter(i=>nkw[k][i]>0);
+    const el=document.createElement('div'); el.className='topic';
+    el.innerHTML=`<div class="th"><span><i class="sw" style="background:${cols[k]}"></i>Topic ${k+1}</span><span style="color:var(--faint);font-weight:500">${nk[k]} tokens</span></div><div class="words">${idx.map(i=>`<span class="w" style="border-color:${cols[k]}55">${inv[i]} <span style="color:var(--faint)">${((nkw[k][i]+beta)/(nk[k]+V*beta)).toFixed(2)}</span></span>`).join('')}</div>`;
+    topicsHost.appendChild(el);
+  }
+  // docs
+  const docsHost=$('docsOut'); docsHost.innerHTML='';
+  lines.forEach((line,di)=>{
+    const words=line.split(/\s+/); let ti=0; const toks=docs[di];
+    const html=words.map(raw=>{
+      const clean=tokenize(raw)[0];
+      if(clean!==undefined && ti<toks.length && vocab.get(clean)===toks[ti]){ const k=z[di][ti++]; return `<span class="tok" style="border-color:${cols[k]};background:${cols[k]}22">${raw}</span>`; }
+      return `<span style="color:var(--faint)">${raw}</span>`;
+    }).join(' ');
+    const tot=toks.length+K*alpha;
+    const bar=Array.from({length:K},(_,k)=>`<i style="width:${100*(ndk[di][k]+alpha)/tot}%;background:${cols[k]}"></i>`).join('');
+    const el=document.createElement('div'); el.className='doc';
+    el.innerHTML=`<div class="txt">${html}</div><div class="bar">${bar}</div>`;
+    docsHost.appendChild(el);
+  });
+  $('statusL').textContent=`K=${K} α=${alpha} β=${beta} · ${iters} sweeps in ${ms} ms`;
+  $('statusR').textContent=`vocabulary: ${V} · tokens: ${T} · documents: ${docs.length}`;
+}
+$('trainBtn').onclick=()=>{ $('statusL').textContent='sampling…'; setTimeout(runLDA,10); };
+</script>
+</body>
+</html>
